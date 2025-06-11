@@ -1,9 +1,9 @@
 import javax.swing.*;
+import javax.swing.Timer;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
 import java.util.*;
-import javax.swing.Timer;
 import java.util.List;
 
 public class Main {
@@ -35,12 +35,13 @@ public class Main {
 
     public static void createNewPlayer() {
         playerName = JOptionPane.showInputDialog("Enter your name:");
-        if (playerName == null || playerName.trim().isEmpty()) playerName = "Anonymous";
+            if (playerName == null || playerName.trim().isEmpty()) playerName = "Anonymous";
         loadHighScore(playerName);
         saveHighScore(playerName, highScore);
         player = new Player(playerName, highScore);
         nameOfPlayer.setText("Name: " + playerName);
-        highScoreDisplay.setText(String.valueOf(highScore));
+        highScoreDisplay.setText(String.valueOf(0));
+        score = 0;
     }
 
     public static void design() {
@@ -132,8 +133,7 @@ public class Main {
     public static void startGameLoop() {
         timer = new Timer(20, e -> {
             if (!player.isPlaying() || !spacePressed) return;
-            player.setVelocity(player.getVelocity() + 1);
-            player.setY(player.getY() + player.getVelocity());
+            player.move(0);
             if (player.getY() <= 170 || player.getY() >= 730) GameManager.handleCollision();
             bird.setBounds(player.getX(), player.getY(), 40, 40);
             for (int i = 0; i < blocks.length; i++) {
@@ -184,6 +184,31 @@ public class Main {
         JOptionPane.showMessageDialog(frame, "Game Over!\nYour score: " + score + "\n" + getLeaderboard(), "Game Over", JOptionPane.INFORMATION_MESSAGE);
         restartGame();
         timer.start();
+    }
+
+    public static String getLeaderboard() {
+        StringBuilder message = new StringBuilder("Leaderboard:\n");
+        try {
+            File file = new File(highScoreFile);
+            if (!file.exists()) return "No scores yet.";
+            Map<String, Integer> scores = new HashMap<>();
+            Scanner sc = new Scanner(file);
+            while (sc.hasNextLine()) {
+                String[] parts = sc.nextLine().split(":");
+                if (parts.length == 2) scores.put(parts[0], Integer.parseInt(parts[1]));
+            }
+            sc.close();
+            List<Map.Entry<String, Integer>> leaderboard = new ArrayList<>(scores.entrySet());
+            leaderboard.sort((a, b) -> b.getValue() - a.getValue());
+            int count = 1;
+            for (Map.Entry<String, Integer> entry : leaderboard) {
+                message.append(count++).append(". ").append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
+                if (count > 6) break;
+            }
+        } catch (IOException e) {
+            message.append("Error reading leaderboard.");
+        }
+        return message.toString();
     }
 
     public static void saveHighScore(String name, int score) {
@@ -245,35 +270,6 @@ public class Main {
         } catch (IOException ex) { ex.printStackTrace(); }
     }
 
-
-    public static String getLeaderboard() {
-        StringBuilder message = new StringBuilder("Leaderboard:\n");
-        try {
-            File file = new File(highScoreFile);
-            if (!file.exists()) return "No scores yet.";
-            Map<String, Integer> scores = new HashMap<>();
-            Scanner sc = new Scanner(file);
-            while (sc.hasNextLine()) {
-                String[] parts = sc.nextLine().split(":");
-                if (parts.length == 2) {
-                    scores.put(parts[0], Integer.parseInt(parts[1]));
-                }
-            }
-            sc.close();
-            List<Map.Entry<String, Integer>> leaderboard = new ArrayList<>(scores.entrySet());
-            leaderboard.sort((a, b) -> b.getValue() - a.getValue());
-            int count = 1;
-            for (Map.Entry<String, Integer> entry : leaderboard) {
-                message.append(count++).append(". ").append(entry.getKey()).append(": ").append(entry.getValue()).append("\n");
-                if (count > 6) break;
-            }
-        } catch (IOException e) {
-            message.append("Error reading leaderboard.");
-        }
-        return message.toString();
-    }
-
-
     static class GameManager {
         public static void handleCollision() {
             player.setPlaying(false);
@@ -288,10 +284,17 @@ public class Main {
     }
 }
 
-class Block {
-    private int width;
-    private int height;
-    private int x;
+abstract class Entity {
+    protected int x, y;
+    public int getX() { return x; }
+    public int getY() { return y; }
+    public void setX(int x) { this.x = x; }
+    public void setY(int y) { this.y = y; }
+    public abstract void move(int speed);
+}
+
+class Block extends Entity {
+    private int width, height;
 
     public Block(int width, int height, int x) {
         this.width = width;
@@ -301,34 +304,41 @@ class Block {
 
     public int getWidth() { return width; }
     public int getHeight() { return height; }
-    public int getX() { return x; }
-    public void move(int speed) { x -= speed; }
+
+    @Override
+    public void move(int speed) {
+        x -= speed;
+    }
 }
 
-class Player {
+class Player extends Entity {
     private String name;
     private int highScore;
     private boolean playing;
-    private int x = 100;
-    private int y = 425;
     private int velocity = 0;
 
     public Player(String name, int highScore) {
         this.name = name;
         this.highScore = highScore;
         this.playing = true;
+        this.x = 100;
+        this.y = 425;
     }
 
-    public void jump() { this.velocity = -15; }
+    public void jump() {
+        this.velocity = -15;
+    }
+
+    public void move(int speed) {
+        velocity += 1;
+        y += velocity;
+    }
 
     public String getName() { return name; }
     public int getHighScore() { return highScore; }
     public void setHighScore(int s) { highScore = s; }
     public boolean isPlaying() { return playing; }
     public void setPlaying(boolean b) { playing = b; }
-    public int getX() { return x; }
-    public int getY() { return y; }
-    public void setY(int y) { this.y = y; }
     public int getVelocity() { return velocity; }
-    public void setVelocity(int v) { this.velocity = v; }
+    public void setVelocity(int v) { velocity = v; }
 }
